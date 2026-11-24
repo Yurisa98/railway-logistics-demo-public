@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f3f7f9">
+  <title>Railway Logistics Simulator — MVP 1</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand-mark" aria-hidden="true">RL</div>
+      <div class="brand-copy">
+        <p class="eyebrow">Vehicle logistics planning</p>
+        <h1>Railway logistics simulator</h1>
+      </div>
+      <div class="top-actions">
+        <span class="offline-pill"><span></span> Offline ready</span>
+        <button class="button button-quiet" id="exportBtn" type="button">Export scenario</button>
+        <button class="button button-quiet" id="importBtn" type="button">Import scenario</button>
+        <button class="button button-quiet" id="themeToggle" type="button" aria-pressed="false">Dark mode</button>
+        <input id="importFile" type="file" accept="application/json,.json" hidden>
+      </div>
+    </header>
+
+    <main>
+      <nav class="page-tabs" role="tablist" aria-label="Simulator pages">
+        <button id="resultsTab" class="page-tab active" role="tab" aria-selected="true" aria-controls="resultsPage" tabindex="0" type="button">Results</button>
+        <button id="inputsTab" class="page-tab" role="tab" aria-selected="false" aria-controls="inputsPage" tabindex="-1" type="button">Inputs</button>
+        <button id="calculationsTab" class="page-tab" role="tab" aria-selected="false" aria-controls="calculationsPage" tabindex="-1" type="button">Calculation details</button>
+      </nav>
+
+      <div class="view-shell">
+        <section id="inputsPage" class="input-panel view-page" role="tabpanel" aria-labelledby="inputsTab" aria-label="Simulation inputs" tabindex="0" hidden>
+          <div class="panel-heading">
+            <div><p class="eyebrow">Change the plan</p><h2>Inputs</h2></div>
+            <button class="button button-small" id="resetBtn" type="button">Reset</button>
+          </div>
+          <p class="panel-hint">Choose a section and adjust the plan. Blank values stay TBD and are called out in results.</p>
+
+          <div class="input-tab-bar" role="tablist" aria-label="Input groups">
+            <button class="input-tab active" id="dailyPlanTab" role="tab" aria-selected="true" aria-controls="dailyPlanPanel" tabindex="0" data-input-tab="dailyPlanPanel" type="button">Daily plan</button>
+            <button class="input-tab" id="trainRouteTab" role="tab" aria-selected="false" aria-controls="trainRoutePanel" tabindex="-1" data-input-tab="trainRoutePanel" type="button">Train and route</button>
+            <button class="input-tab" id="locationsTab" role="tab" aria-selected="false" aria-controls="locationsPanel" tabindex="-1" data-input-tab="locationsPanel" type="button">Locations and vessels</button>
+            <button class="input-tab" id="peopleTab" role="tab" aria-selected="false" aria-controls="peoplePanel" tabindex="-1" data-input-tab="peoplePanel" type="button">People and process times</button>
+          </div>
+
+          <div id="dailyPlanPanel" class="input-tab-panel active" role="tabpanel" aria-labelledby="dailyPlanTab" tabindex="0">
+          <div class="input-tab-intro"><h3>Daily plan</h3><p>Set the planning horizon and daily vehicle volumes for this scenario.</p></div>
+          <section class="input-section">
+            <h3>Planning horizon <span class="help-wrap"><button class="help" aria-label="About planning horizon" aria-expanded="false" type="button">?</button><span class="tooltip" role="tooltip">How many simulated days to include. This changes the inventory graph and projected train or vessel events.</span></span></h3>
+            <div class="field-grid two-col">
+              <label>Simulation days <input id="horizonDays" type="number" min="1" max="180" step="1" value="14"></label>
+              <label>Demand mode <select id="demandMode"><option value="network">East Coast + East Malaysia</option><option value="east-coast">East Coast only</option><option value="east-malaysia">East Malaysia only</option></select></label>
+            </div>
+          </section>
+
+          <section class="input-section">
+            <h3>Plant and starting stock</h3>
+            <div class="field-grid two-col">
+              <label>NAC starting stock, East Coast <span class="unit">CBU</span><input id="startNacEc" type="number" min="0" step="1" value="0"></label>
+              <label>NAC starting stock, East Malaysia <span class="unit">CBU</span><input id="startNacEm" type="number" min="0" step="1" value="0"></label>
+              <label>NAC to SFT transfer limit <span class="unit">CBU / day</span><input id="nacTransferCapacity" type="number" min="0" step="1" placeholder="TBD"></label>
+              <label>NAC to SFT transfer time <span class="unit">minutes</span><input id="nacTransferMinutes" type="number" min="0" step="1" placeholder="TBD"></label>
+            </div>
+            <p class="inline-note">Daily volume is produced at NAC. It reaches SFT only when a transfer limit is entered. Starting stock is editable and begins at zero in this planning scenario.</p>
+          </section>
+          <section class="input-section">
+            <h3>Daily vehicle volumes <span class="help-wrap"><button class="help" aria-label="About daily vehicle volumes" aria-expanded="false" type="button">?</button><span class="tooltip" role="tooltip">Starting values from the project discussion. The mixed figure is shown for reconciliation; network mode uses the separate East Coast and East Malaysia inputs.</span></span></h3>
+            <div class="field-grid two-col">
+              <label>East Coast <span class="unit">CBU / day</span><input id="ecVolume" type="number" min="0" step="1" value="137"></label>
+              <label>East Malaysia <span class="unit">CBU / day</span><input id="emVolume" type="number" min="0" step="1" value="221"></label>
+              <label>Mixed volume (reference) <span class="unit">CBU / day</span><input id="mixedVolume" type="number" min="0" step="1" value="359"></label>
+            </div>
+            <p class="inline-note warning-text">137 + 221 = 358; the stated mixed volume is 359. The reference value is not added to the network flow.</p>
+          </section>
+          </div>
+
+          <div id="trainRoutePanel" class="input-tab-panel" role="tabpanel" aria-labelledby="trainRouteTab" tabindex="0" hidden>
+          <div class="input-tab-intro"><h3>Train and route</h3><p>Set wagon loading, departure rules, and the Paya Besar siding limit.</p></div>
+          <section class="input-section">
+            <h3>Train and wagon plan <span class="help-wrap"><button class="help" aria-label="About train capacity" aria-expanded="false" type="button">?</button><span class="tooltip" role="tooltip">Wagons for different destinations stay separate. Effective capacity is limited by the trip cap and the number of wagons multiplied by their usable capacity.</span></span></h3>
+            <div class="field-grid two-col">
+              <label>Wagons per trip<input id="wagonCount" type="number" min="1" max="100" step="1" value="22"></label>
+              <label>Maximum trip capacity <span class="unit">CBU</span><input id="tripCapacity" type="number" min="1" step="1" value="230"></label>
+              <label>Typical per wagon <span class="unit">CBU</span><input id="wagonTypical" type="number" min="1" max="10" step="1" value="8"></label>
+              <label>Maximum per wagon <span class="unit">CBU</span><input id="wagonMaximum" type="number" min="1" max="10" step="1" value="10"></label>
+              <label>Vehicle size factor <span class="unit">1.0 = standard</span><input id="sizeFactor" type="number" min="0.1" max="5" step="0.05" value="1"></label>
+              <label>Minimum dispatch quantity<input id="dispatchQty" type="number" min="1" step="1" value="176"></label>
+            </div>
+            <div class="switch-row"><label class="switch-label"><input id="requireFullLoad" type="checkbox" checked><span>Require minimum load before dispatch</span></label><span class="help-wrap"><button class="help" aria-label="About minimum load setting" aria-expanded="false" type="button">?</button><span class="tooltip" role="tooltip">When on, a train waits until the minimum quantity is ready. When off, it can leave with the available quantity at a scheduled slot.</span></span></div>
+            <div class="derived-box"><span>Calculated typical trip capacity</span><strong id="effectiveCapacity">176 CBU</strong><small id="effectiveCapacityNote">22 wagons × 8 CBU, limited by 230 trip cap</small></div>
+            <div class="derived-box muted-box"><span>Simple time to minimum load</span><strong id="fillEstimate">—</strong><small id="fillEstimateNote">Uses selected daily volumes only; excludes queues, wagon packing and schedule waits.</small></div>
+            <div class="field-grid two-col compact-top">
+              <label>Train departures / day<input id="trainsPerDay" type="number" min="0" max="10" step="1" value="1"></label>
+              <label>Daily train slot<input id="trainSlot" type="time" value="16:00"></label>
+            </div>
+            <p class="inline-note">One daily slot at 16:00 is an editable planning placeholder, not a confirmed timetable.</p>
+          </section>
+
+          <section class="input-section">
+            <h3>Paya Besar siding limits</h3>
+            <label>Siding limit method<select id="sidingMode"><option value="length">Length-based</option><option value="count">Direct wagon-count limit</option></select></label>
+            <label>Siding check includes<select id="sidingCheckScope"><option value="">Choose scope</option><option value="consist">Whole train consist</option><option value="ec-cut">East Coast wagon cut only</option></select></label>
+            <div class="field-grid two-col compact-top">
+              <label>Usable siding length <span class="unit">m</span><input id="sidingLength" type="number" min="0" step="1" value="500"></label>
+              <label>Wagon count limit <span class="unit">wagons</span><input id="sidingWagonLimit" type="number" min="0" step="1" placeholder="TBD"></label>
+              <label>Wagon length <span class="unit">m</span><input id="wagonLength" type="number" min="0" step="0.1" placeholder="TBD"></label>
+              <label>Locomotive length <span class="unit">m</span><input id="locoLength" type="number" min="0" step="0.1" placeholder="TBD"></label>
+            </div>
+          </section>
+          </div>
+
+          <div id="locationsPanel" class="input-tab-panel" role="tabpanel" aria-labelledby="locationsTab" tabindex="0" hidden>
+          <div class="input-tab-intro"><h3>Locations and vessels</h3><p>Set storage limits, port dispatch quantities, and dealer deliveries.</p></div>
+          <section class="input-section">
+            <h3>Starting stock by location</h3>
+            <div class="field-grid two-col">
+              <label>SFT, East Coast <span class="unit">CBU</span><input id="startSftEc" type="number" min="0" step="1" value="0"></label>
+              <label>SFT, East Malaysia <span class="unit">CBU</span><input id="startSftEm" type="number" min="0" step="1" value="0"></label>
+              <label>Paya Besar, East Coast <span class="unit">CBU</span><input id="startPayaEc" type="number" min="0" step="1" value="0"></label>
+              <label>Kuantan Port, East Malaysia <span class="unit">CBU</span><input id="startPortEm" type="number" min="0" step="1" value="0"></label>
+              <label>East Malaysia hubs, combined <span class="unit">CBU</span><input id="startEmHub" type="number" min="0" step="1" value="0"></label>
+              <label>Sabah hub, starting stock <span class="unit">CBU</span><input id="startSabahStock" type="number" min="0" step="1" value="0"></label>
+              <label>Sarawak hub, starting stock <span class="unit">CBU</span><input id="startSarawakStock" type="number" min="0" step="1" value="0"></label>
+              <label>NAC holding capacity <span class="unit">CBU</span><input id="nacCapacity" type="number" min="0" step="1" placeholder="TBD"></label>
+            </div>
+            <p class="inline-note">These editable starting stocks default to zero for this scenario. Combined hub stock cannot be assigned to dealer branches unless you enter the separate Sabah and Sarawak starting stocks.</p>
+          </section>
+          <section class="input-section">
+            <h3>Storage limits</h3>
+            <div class="field-grid two-col">
+              <label>Network SFT holding capacity <span class="unit">CBU</span><input id="sftCapacity" type="number" min="0" step="1" placeholder="TBD"></label>
+              <label>Paya Besar storage capacity <span class="unit">CBU</span><input id="payaCapacity" type="number" min="0" step="1" placeholder="TBD"></label>
+              <label>Kuantan Port yard capacity <span class="unit">CBU</span><input id="portCapacity" type="number" min="0" step="1" placeholder="TBD"></label>
+              <label>East Malaysia hub capacity <span class="unit">CBU</span><input id="emCapacity" type="number" min="0" step="1" placeholder="TBD"></label>
+            </div>
+            <p class="inline-note">Blank capacities stay TBD and are not applied to the overflow check.</p>
+          </section>
+          <section class="input-section">
+            <h3>East Coast dealer delivery</h3>
+            <div class="field-grid two-col">
+              <label>East Coast dealer delivery <span class="unit">CBU / day</span><input id="payaDealerRate" type="number" min="0" step="1"></label>
+            </div>
+            <p class="inline-note">Starting assumption: dealer delivery is 137 CBU/day to match the initial East Coast volume; this is not a confirmed dispatch rate. Adjust it if local distribution differs.</p>
+          </section>
+          <section class="input-section">
+            <h3>Port and vessel</h3>
+            <div class="field-grid two-col">
+              <label>Vessel dispatch quantity<input id="vesselDispatchQty" type="number" min="1" step="1" value="1500"></label>
+              <label>Vessel capacity <span class="unit">CBU</span><input id="vesselCapacity" type="number" min="0" step="1" placeholder="TBD"></label>
+              <label>Vessel departures / week<input id="vesselTripsPerWeek" type="number" min="0" max="7" step="0.5" placeholder="TBD"></label>
+              <label>Sabah share <span class="unit">% of EM volume</span><input id="sabahShare" type="number" min="0" max="100" step="1" placeholder="TBD"></label>
+            </div>
+            <p class="inline-note">Rail and voyage durations are entered in the process cycle-time section. If vessel departures/week is blank, the 1,500-unit dispatch trigger is shown as ready-to-dispatch with timing TBD.</p>
+          </section>
+
+          <section class="input-section">
+            <h3>East Malaysia dealer deliveries</h3>
+            <div class="field-grid two-col">
+              <label>Sabah dealer delivery <span class="unit">CBU / day</span><input id="sabahDealerRate" type="number" min="0" step="1" placeholder="TBD"></label>
+              <label>Sarawak dealer delivery <span class="unit">CBU / day</span><input id="sarawakDealerRate" type="number" min="0" step="1" placeholder="TBD"></label>
+            </div>
+            <p class="inline-note">These are daily outbound quantities from each hub. Leave blank until the rate is known. Enter the Sabah share above so the model can separate arrivals before applying these delivery rates.</p>
+          </section>
+          </div>
+
+          <div id="peoplePanel" class="input-tab-panel" role="tabpanel" aria-labelledby="peopleTab" tabindex="0" hidden>
+          <div class="input-tab-intro"><h3>People and process times</h3><p>Set shift availability and process cycle times to estimate staffing needs.</p></div>
+          <section class="input-section">
+            <h3>Shift calendar</h3>
+            <div class="field-grid three-col">
+              <label>Shifts / day<input id="shiftCount" type="number" min="1" max="4" step="1" value="2"></label>
+              <label>Hours / shift<input id="shiftHours" type="number" min="1" max="16" step="0.5" value="8"></label>
+              <label>Shift 1 starts<input id="shiftStart" type="time" value="00:00"></label>
+            </div>
+            <p class="inline-note">Shift start is a simulation-clock setting. Change it to match the operation.</p>
+          </section>
+          <section class="input-section">
+            <h3>Manpower availability <span class="help-wrap"><button class="help" aria-label="About manpower availability" aria-expanded="false" type="button">?</button><span class="tooltip" role="tooltip">Available minutes per person = shift minutes less breaks, multiplied by productive availability. Blank allowance means a theoretical 480-minute shift.</span></span></h3>
+            <div class="field-grid two-col">
+              <label>Break / non-working minutes<input id="breakMinutes" type="number" min="0" max="480" step="5" placeholder="TBD"></label>
+              <label>Productive availability <span class="unit">%</span><input id="availabilityPct" type="number" min="1" max="100" step="1" placeholder="TBD"></label>
+              <div class="inline-note field-span-all">Backlog is extra work already waiting at a specific process. Enter it inside that process below. It affects staffing only, not physical inventory. Each process has its own deadline.</div>
+            </div>
+            <div class="derived-box muted-box"><span>Available time / worker / shift</span><strong id="availableMinutes">480 min · theoretical</strong></div>
+          </section>
+
+          <section class="input-section">
+            <div class="section-title-row"><h3>Process cycle times and crews</h3><button class="text-button" id="toggleProcesses" type="button">Expand all</button></div>
+            <p class="inline-note">Enter hands-on minutes for staffing. Enter elapsed minutes separately for lead-time estimates. Blank values remain TBD.</p>
+            <div id="processInputs" class="process-inputs"></div>
+          </section>
+          </div>
+
+          <div class="run-row">
+            <button class="button button-primary button-wide" id="runBtn" type="button">Run and view results</button>
+            <p id="savedState" class="saved-state">Scenario saves in this browser</p>
+          </div>
+        </section>
+
+        <section id="resultsPage" class="results-panel view-page" role="tabpanel" aria-labelledby="resultsTab" aria-label="Simulation results" tabindex="0">
+          <div class="results-toolbar">
+            <div><p class="eyebrow">Scenario results</p><h2 id="runTitle">Initial planning view</h2></div>
+            <div class="toolbar-meta">
+              <div class="toolbar-process-time"><span>Entered cycle times</span><strong id="kpiLead">—</strong><small id="kpiLeadSub">Cycle-time sum, not end-to-end time</small></div>
+              <div class="toolbar-run-meta"><span id="runTimestamp">Ready to run</span><span id="resultCompleteness" class="status-pill status-info">Inputs editable</span></div>
+            </div>
+          </div>
+
+          <div class="kpi-grid">
+            <article class="kpi-card"><div class="kpi-label">SFT inventory at end <span class="help-wrap"><button class="help" aria-label="About SFT ending inventory" aria-expanded="false" type="button">?</button><span class="tooltip" role="tooltip">Vehicles still at SFT at the end of the selected simulation horizon.</span></span></div><strong id="kpiSft">—</strong><small id="kpiSftSub">Run the scenario</small></article>
+            <article class="kpi-card"><div class="kpi-label">Train trips dispatched</div><strong id="kpiTrains">—</strong><small id="kpiTrainsSub">Based on slots and load rule</small></article>
+            <article class="kpi-card"><div class="kpi-label">Kuantan Port inventory</div><strong id="kpiPort">—</strong><small id="kpiPortSub">Vessel quantity is editable</small></article>
+            <article class="kpi-card"><div class="kpi-label">Manpower gap</div><strong id="kpiGap">—</strong><small id="kpiGapSub">Requires cycle-time inputs</small></article>
+          </div>
+
+          <section class="route-section" aria-labelledby="routeTitle">
+            <div class="route-heading"><div><p class="eyebrow">Vehicle route</p><h3 id="routeTitle">Stock at each location</h3></div><span class="route-caption">End of simulation · CBU</span></div>
+            <ol class="route-board">
+              <li class="route-stop"><span class="route-dot" aria-hidden="true"></span><span class="route-name">NAC plant</span><strong id="routeNac">—</strong><small id="routeNacNote">Plant stock</small></li>
+              <li class="route-stop"><span class="route-dot" aria-hidden="true"></span><span class="route-name">SFT</span><strong id="routeSft">—</strong><small id="routeSftNote">Waiting for a run</small></li>
+              <li class="route-stop"><span class="route-dot" aria-hidden="true"></span><span class="route-name">Paya Besar</span><strong id="routePaya">—</strong><small id="routePayaNote">East Coast stock</small></li>
+              <li class="route-stop"><span class="route-dot" aria-hidden="true"></span><span class="route-name">Kuantan Port</span><strong id="routePort">—</strong><small id="routePortNote">East Malaysia stock</small></li>
+              <li class="route-stop route-stop-final"><span class="route-dot" aria-hidden="true"></span><span class="route-name">East Malaysia hubs</span><strong id="routeEm">—</strong><small id="routeEmNote">Sabah + Sarawak</small></li>
+            </ol>
+          </section>
+
+          <div class="chart-grid">
+            <section class="chart-card">
+              <div class="chart-heading"><div><p class="eyebrow">Inventory flow</p><h3>Inventory by location</h3><p id="inventoryChartSubtitle" class="chart-subtitle">CBU over the simulation period</p></div><label class="chart-mode">Show <select id="inventoryMode" aria-label="Inventory graph mode"><option value="end">End of day</option><option value="peak">Daily peak</option></select></label></div>
+              <div id="inventoryChart" class="chart-area" role="img" aria-label="Inventory graph will appear after a run"></div>
+              <div id="inventoryTable" class="chart-table-wrap"></div>
+            </section>
+            <section class="chart-card">
+              <div class="chart-heading"><div><p class="eyebrow">Staffing</p><h3>Manpower needed by process</h3><p class="chart-subtitle">Required headcount compared with current headcount</p></div><span class="chart-unit">people</span></div>
+              <div id="staffChart" class="chart-area" role="img" aria-label="Manpower graph will appear after a run"></div>
+              <div id="staffTable" class="chart-table-wrap"></div>
+            </section>
+          </div>
+
+          <section class="detail-grid">
+            <article class="detail-card">
+              <div class="chart-heading"><div><p class="eyebrow">Work by process</p><h3>Staffing detail</h3></div><div class="segmented" role="group" aria-label="Manpower view"><button class="active" data-staff-view="network" type="button">All teams</button><button data-staff-view="in-house" type="button">In-house Manpower</button></div></div>
+              <p class="inline-note">Shift need is people required per shift. Backlog need is additional people required for that process&apos;s separate backlog and deadline. Blank backlog or deadline is not checked.</p>
+              <div class="table-wrap"><table id="staffingTable"><thead><tr><th>Location / process</th><th>Operator</th><th>Shift need</th><th>Backlog need</th><th>Current / shift</th><th>Gap vs shift</th><th>Touch time</th><th>Workload</th></tr></thead><tbody><tr><td colspan="8" class="empty-cell">Enter cycle times, then run the scenario.</td></tr></tbody></table></div>
+            </article>
+            <article class="detail-card">
+              <div class="chart-heading"><div><p class="eyebrow">Run history</p><h3>Train, vessel and dealer events</h3></div><span id="eventCount" class="chart-unit">0 events</span></div>
+              <ol id="eventLog" class="event-log"><li class="empty-cell">Run a scenario to see train and vessel events.</li></ol>
+            </article>
+          </section>
+
+          <section class="detail-card gantt-card">
+            <div class="chart-heading"><div><p class="eyebrow">Process timing</p><h3>Process timeline</h3><p class="chart-subtitle">Bars follow the process order. Duration = elapsed time × cycles ÷ parallel teams. This estimate does not add unentered queue delays.</p></div><span class="chart-unit">hours from start</span></div>
+            <div id="ganttChart" class="gantt-wrap"><div class="chart-empty">Enter process elapsed times and batch sizes to build the timeline.</div></div>
+          </section>
+
+          <section class="readiness-card">
+            <div class="readiness-head"><div><p class="eyebrow">Before using this plan</p><h3>Readiness checks and suggestions</h3></div><span class="not-cert">Planning aid · not a safety certification</span></div>
+            <div id="readinessList" class="readiness-list"><div class="empty-state">Run a scenario to see checks based on your inputs.</div></div>
+          </section>
+
+          <footer class="disclaimer">MVP 1 is an exploratory planning model. Unknown travel times and capacities are not treated as confirmed operating facts. Always review warnings and source inputs with process owners.</footer>
+        </section>
+
+        <section id="calculationsPage" class="results-panel view-page" role="tabpanel" aria-labelledby="calculationsTab" aria-label="Calculation details" tabindex="0" hidden>
+          <div class="results-toolbar"><div><p class="eyebrow">Trace every number</p><h2>Calculation details</h2><p class="chart-subtitle">Daily stock balance and staffing formulas used in the latest run.</p></div></div>
+          <section class="detail-card"><div class="chart-heading"><div><h3>Inventory ledger</h3><p class="inline-note">Opening stock + arrivals/production − departures = closing stock. Peak is the highest stock seen during the day.</p></div></div><div id="ledgerTable" class="table-wrap"></div></section>
+          <section class="detail-card"><div class="chart-heading"><div><h3>Staffing calculation</h3><p class="inline-note">Shift need = round up (cycles × hands-on minutes ÷ available minutes per worker per shift) × crew size. Backlog need uses that process&apos;s backlog cycles and deadline hours, with available time capped at one shift per worker.</p></div></div><div id="calcStaffTable" class="table-wrap"></div></section>
+          <section class="readiness-card"><h3>Input and arithmetic notes</h3><div id="calcNotes" class="readiness-list"></div></section>
+        </section>
+      </div>
+    </main>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>
